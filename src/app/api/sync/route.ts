@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   );
 
   let master: Awaited<ReturnType<typeof syncMasterData>> | null = null;
-  if (body.includeMaster !== false) {
+  if (body.syncMaster === true) {
     master = await syncMasterData();
   }
 

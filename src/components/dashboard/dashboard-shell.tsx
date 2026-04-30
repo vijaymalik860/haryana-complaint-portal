@@ -124,7 +124,6 @@ type SyncChunkResponse = {
 
 async function syncRangeInChunks(from: string, to: string) {
   let cursor = from;
-  let includeMaster = true;
 
   for (let attempt = 0; attempt < 400; attempt += 1) {
     const response = await fetch("/api/sync", {
@@ -134,7 +133,6 @@ async function syncRangeInChunks(from: string, to: string) {
         from,
         to,
         cursorFrom: cursor,
-        includeMaster,
       }),
     });
 
@@ -149,7 +147,6 @@ async function syncRangeInChunks(from: string, to: string) {
     }
 
     cursor = payload.nextCursor;
-    includeMaster = false;
   }
 
   throw new Error("Sync exceeded the maximum chunk attempts");
