@@ -41,22 +41,32 @@ const AGGREGATE_STATE_ID = 1;
 export async function upsertComplaintRecords(
   db: UpsertCapableDb,
   records: NormalizedComplaint[],
-  batchSize = 250,
+  batchSize = 1000,
 ): Promise<number> {
+  if (records.length === 0) return 0;
+
+  const deduped = new Map<string, NormalizedComplaint>();
+  records.forEach((record) => {
+    deduped.set(record.id, record);
+  });
+
+  const uniqueRecords = [...deduped.values()];
   let upserted = 0;
 
-  for (let index = 0; index < records.length; index += batchSize) {
-    const batch = records.slice(index, index + batchSize);
-    const operations = batch.map((record) => {
-      const { id, ...data } = record;
-      return db.complaint.upsert({
-        where: { id },
-        create: { id, ...data },
-        update: data,
-      });
-    });
+  for (let index = 0; index < uniqueRecords.length; index += batchSize) {
+    const batch = uniqueRecords.slice(index, index + batchSize);
+    const ids = batch.map((record) => record.id);
 
-    await db.$transaction(operations);
+    await db.$transaction([
+      db.complaint.deleteMany({
+        where: {
+          id: { in: ids },
+        },
+      }),
+      db.complaint.createMany({
+        data: batch,
+      }),
+    ]);
     upserted += batch.length;
   }
 

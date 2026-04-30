@@ -11,22 +11,19 @@ describe("complaint upserts", () => {
     const store = new Map<string, NormalizedComplaint>();
     const fakeDb = {
       complaint: {
-        upsert: ({
-          where,
-          create,
-          update,
-        }: {
-          where: { id: string };
-          create: NormalizedComplaint;
-          update: Omit<NormalizedComplaint, "id">;
-        }) =>
+        deleteMany: ({ where }: { where: { id: { in: string[] } } }) =>
           Promise.resolve().then(() => {
-            if (store.has(where.id)) {
-              store.set(where.id, { id: where.id, ...update });
-            } else {
-              store.set(where.id, create);
-            }
-            return store.get(where.id);
+            where.id.in.forEach((id) => {
+              store.delete(id);
+            });
+            return { count: where.id.in.length };
+          }),
+        createMany: ({ data }: { data: NormalizedComplaint[] }) =>
+          Promise.resolve().then(() => {
+            data.forEach((record) => {
+              store.set(record.id, record);
+            });
+            return { count: data.length };
           }),
       },
       $transaction: async (operations: Promise<unknown>[]) =>
