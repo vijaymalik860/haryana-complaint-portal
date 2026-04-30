@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Complaint {
+  id                    String    @id
+  regNum                String?
+  srNo                  String?
+  districtName          String?
+  typeOfComplaint       String?
+  complaintSource       String?
+  receptionMode         String?
+  incidentType          String?
+  classOfIncident       String?
+  respondentCategories  String?
+  complainantType       String?
+  complaintPurpose      String?
+  statusRaw             String?
+  statusGroup           String
+  regDate               DateTime?
+  disposalDate          DateTime?
+  disposalDays          Int?
+  submitPsCode          String?
+  transferPsCode        String?
+  responsiblePsCode     String?
+  submitOfficeCode      String?
+  transferOfficeCode    String?
+  responsibleOfficeCode String?
+  syncedAt              DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([regDate])
+  @@index([districtName])
+  @@index([statusGroup])
+  @@index([typeOfComplaint])
+  @@index([classOfIncident])
+  @@index([complaintSource])
+  @@index([responsiblePsCode])
+}
+
+model District {
+  id        String   @id
+  name      String   @unique
+  updatedAt DateTime @updatedAt
+}
+
+model PoliceStation {
+  id           String   @id
+  name         String
+  districtId   String
+  districtName String
+  updatedAt    DateTime @updatedAt
+
+  @@index([districtId])
+  @@index([districtName])
+}
+
+model Office {
+  id        String   @id
+  name      String
+  updatedAt DateTime @updatedAt
+}
+
+model SyncRun {
+  id            Int       @id @default(autoincrement())
+  kind          String
+  status        String
+  timeFrom      DateTime?
+  timeTo        DateTime?
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  fetchedCount  Int       @default(0)
+  upsertedCount Int       @default(0)
+  message       String?
+
+  @@index([kind])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model ComplaintAggDaily {
+  id                       Int      @id @default(autoincrement())
+  regDate                  DateTime
+  districtKey              String
+  psKey                    String
+  typeKey                  String
+  classKey                 String
+  sourceKey                String
+  statusGroup              String
+  totalCount               Int
+  disposedDaysSum          Int      @default(0)
+  disposedDaysCount        Int      @default(0)
+  disposedMissingDateCount Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([regDate, districtKey, psKey, typeKey, classKey, sourceKey, statusGroup])
+  @@index([regDate])
+  @@index([districtKey])
+  @@index([psKey])
+  @@index([typeKey])
+  @@index([classKey])
+  @@index([sourceKey])
+  @@index([statusGroup])
+}
+
+model ComplaintAggDisposalBucketDaily {
+  id             Int      @id @default(autoincrement())
+  regDate        DateTime
+  districtKey    String
+  psKey          String
+  typeKey        String
+  classKey       String
+  sourceKey      String
+  statusGroup    String
+  disposalBucket String
+  count          Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([regDate, districtKey, psKey, typeKey, classKey, sourceKey, statusGroup, disposalBucket])
+  @@index([regDate])
+  @@index([districtKey])
+  @@index([psKey])
+  @@index([typeKey])
+  @@index([classKey])
+  @@index([sourceKey])
+  @@index([statusGroup])
+  @@index([disposalBucket])
+}
+
+model AggregateRefreshState {
+  id             Int      @id
+  lastRefreshedAt DateTime?
+  lastRangeFrom  DateTime?
+  lastRangeTo    DateTime?
+  status         String
+  message        String?
+  updatedAt      DateTime @updatedAt
+}
