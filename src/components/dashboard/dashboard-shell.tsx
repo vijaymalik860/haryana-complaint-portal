@@ -117,6 +117,44 @@ const disposalColumns = [...pendencyColumns, "Missing date"];
 const fullScreenDialogClass =
   "top-0 left-0 h-screen max-h-screen w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_1fr] overflow-hidden rounded-none p-4 sm:max-w-none";
 
+type SyncChunkResponse = {
+  done: boolean;
+  nextCursor: string | null;
+};
+
+async function syncRangeInChunks(from: string, to: string) {
+  let cursor = from;
+  let includeMaster = true;
+
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const response = await fetch("/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from,
+        to,
+        cursorFrom: cursor,
+        includeMaster,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error((await response.text()) || "Sync failed");
+    }
+
+    const payload = (await response.json()) as SyncChunkResponse;
+    if (payload.done) return;
+    if (!payload.nextCursor) {
+      throw new Error("Sync stopped before completion");
+    }
+
+    cursor = payload.nextCursor;
+    includeMaster = false;
+  }
+
+  throw new Error("Sync exceeded the maximum chunk attempts");
+}
+
 function formatNumber(value: number | null | undefined) {
   if (value === null || value === undefined) return "-";
   return new Intl.NumberFormat("en-IN").format(value);
@@ -1073,12 +1111,7 @@ function DatabaseView({ data }: { data: DashboardData }) {
     setSyncing(true);
     setError(null);
     try {
-      const response = await fetch("/api/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from, to }),
-      });
-      if (!response.ok) throw new Error(await response.text());
+      await syncRangeInChunks(from, to);
       router.refresh();
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : String(syncError));
@@ -1171,12 +1204,7 @@ export function DashboardShell({ data, detail }: DashboardShellProps) {
     setSyncing(true);
     setSyncError(null);
     try {
-      const response = await fetch("/api/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from: data.filters.from, to: data.filters.to }),
-      });
-      if (!response.ok) throw new Error((await response.text()) || "Sync failed");
+      await syncRangeInChunks(data.filters.from, data.filters.to);
       router.refresh();
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : String(error));
