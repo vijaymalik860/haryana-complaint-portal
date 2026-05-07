@@ -8,7 +8,7 @@ export type DashboardFilters = {
   type: string;
   classOfIncident: string;
   source: string;
-  status: "all" | StatusGroup;
+  status: "all" | StatusGroup | "pending-over-30";
 };
 
 export type OptionItem = {
