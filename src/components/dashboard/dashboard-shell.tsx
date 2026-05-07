@@ -30,6 +30,7 @@ import {
   FileText,
   Filter,
   RefreshCw,
+  Table as TableIcon,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -114,6 +115,15 @@ const unknownColor = "oklch(0.62 0.02 250)";
 const totalColor = "oklch(0.68 0.15 245)";
 const pendencyColumns = ["0-7 days", "8-15 days", "16-30 days", ">30 days"];
 const disposalColumns = [...pendencyColumns, "Missing date"];
+
+// Maps internal bucket keys to human-readable column header labels
+const COLUMN_DISPLAY_LABELS: Record<string, string> = {
+  "0-7 days":    "Within 7 days",
+  "8-15 days":   "Within 15 days",
+  "16-30 days":  "Within 30 days",
+  ">30 days":    "Above 30 days",
+  "Missing date": "Missing date",
+};
 const fullScreenDialogClass =
   "top-0 left-0 h-screen max-h-screen w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_1fr] overflow-hidden rounded-none p-4 sm:max-w-none";
 
@@ -260,14 +270,26 @@ function MetricCard({
   value,
   detail,
   icon,
+  onClick,
+  active,
 }: {
   label: string;
   value: string;
   detail: string;
   icon: ReactNode;
+  onClick?: () => void;
+  active?: boolean;
 }) {
   return (
-    <Card size="sm" className="bg-card/80">
+    <Card
+      size="sm"
+      className={[
+        "glass-card",
+        onClick ? "cursor-pointer glass-card-hover" : "",
+        active ? "ring-2 ring-primary border-primary/60 shadow-[0_0_15px_rgba(59,130,246,0.3)]" : "",
+      ].join(" ")}
+      onClick={onClick}
+    >
       <CardHeader className="grid-cols-[1fr_auto]">
         <div>
           <CardDescription>{label}</CardDescription>
@@ -304,7 +326,7 @@ function SummaryTooltip({
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
   return (
-    <div className="rounded-md border bg-popover p-3 text-xs shadow-md">
+    <div className="glass-card rounded-md p-3 text-xs shadow-xl ring-1 ring-white/10">
       <div className="mb-2 font-medium text-popover-foreground">{label}</div>
       <div className="space-y-1 text-muted-foreground">
         <div className="flex justify-between gap-6">
@@ -347,7 +369,7 @@ function TrendTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-md border bg-popover p-3 text-xs shadow-md">
+    <div className="glass-card rounded-md p-3 text-xs shadow-xl ring-1 ring-white/10">
       <div className="mb-2 font-medium text-popover-foreground">{label}</div>
       <div className="space-y-1">
         {payload.map((item) => (
@@ -399,7 +421,21 @@ function HorizontalSummaryChart({
             if (row?.value) onRowClick?.(row);
           }}
         >
-          <CartesianGrid horizontal={false} stroke="var(--border)" />
+          <defs>
+            <linearGradient id="colorDisposed" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#10b981" stopOpacity={0.8}/>
+              <stop offset="100%" stopColor="#059669" stopOpacity={1}/>
+            </linearGradient>
+            <linearGradient id="colorPending" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8}/>
+              <stop offset="100%" stopColor="#dc2626" stopOpacity={1}/>
+            </linearGradient>
+            <linearGradient id="colorUnknown" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#94a3b8" stopOpacity={0.4}/>
+              <stop offset="100%" stopColor="#64748b" stopOpacity={0.7}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid horizontal={false} stroke="var(--border)" strokeDasharray="3 3" opacity={0.3} />
           <XAxis type="number" tickLine={false} axisLine={false} stroke="var(--muted-foreground)" />
           <YAxis
             dataKey="label"
@@ -409,13 +445,13 @@ function HorizontalSummaryChart({
             axisLine={false}
             tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
           />
-          <Tooltip content={<SummaryTooltip />} />
+          <Tooltip content={<SummaryTooltip />} cursor={{ fill: 'var(--muted)', opacity: 0.1 }} />
           <Legend />
           <Bar
             dataKey="disposed"
             name="Disposed"
             stackId="status"
-            fill={disposedColor}
+            fill="url(#colorDisposed)"
             radius={[4, 0, 0, 4]}
             cursor={onRowClick ? "pointer" : "default"}
             onClick={handleBarClick}
@@ -424,7 +460,7 @@ function HorizontalSummaryChart({
             dataKey="pending"
             name="Pending"
             stackId="status"
-            fill={pendingColor}
+            fill="url(#colorPending)"
             cursor={onRowClick ? "pointer" : "default"}
             onClick={handleBarClick}
           />
@@ -432,7 +468,7 @@ function HorizontalSummaryChart({
             dataKey="unknown"
             name="Unknown"
             stackId="status"
-            fill={unknownColor}
+            fill="url(#colorUnknown)"
             radius={[0, 4, 4, 0]}
             cursor={onRowClick ? "pointer" : "default"}
             onClick={handleBarClick}
@@ -473,7 +509,7 @@ function SummaryBarChartCard({
     : undefined;
 
   return (
-    <Card className="bg-card/80">
+    <Card className="glass-card">
       <CardHeader className="gap-3 sm:grid sm:grid-cols-[1fr_auto]">
         <div>
           <CardTitle>{title}</CardTitle>
@@ -598,18 +634,45 @@ function bucketCell(row: TimeMatrixRow, label: string) {
   );
 }
 
+// Columns that are never accumulated — they always show their own raw count
+const NON_CUMULATIVE_COLS = new Set([">30 days", "Missing date"]);
+
+function getCumulativeCell(
+  row: TimeMatrixRow,
+  column: string,
+  columns: string[],
+  cumulative: boolean,
+): { count: number; percent: number } {
+  if (!cumulative || NON_CUMULATIVE_COLS.has(column)) {
+    const cell = bucketCell(row, column);
+    return { count: cell.count, percent: cell.percent };
+  }
+  // Sum all non-excluded columns up to and including this one
+  let cumulativeCount = 0;
+  for (const col of columns) {
+    if (NON_CUMULATIVE_COLS.has(col)) continue;
+    cumulativeCount += bucketCell(row, col).count;
+    if (col === column) break;
+  }
+  const cumulativePercent =
+    row.total > 0 ? Number(((cumulativeCount / row.total) * 100).toFixed(1)) : 0;
+  return { count: cumulativeCount, percent: cumulativePercent };
+}
+
 function TimeMatrixTable({
   rows,
   columns,
   title,
   description,
   compactLimit = 10,
+  cumulativeBuckets = false,
 }: {
   rows: TimeMatrixRow[];
   columns: string[];
   title: string;
   description: string;
   compactLimit?: number;
+  cumulativeBuckets?: boolean;
 }) {
   const [sortKey, setSortKey] = useState<TimeMatrixSortKey>("total");
   const [direction, setDirection] = useState<SortDirection>("desc");
@@ -635,7 +698,14 @@ function TimeMatrixTable({
             </TableHead>
             {columns.map((column) => (
               <TableHead key={column} className="min-w-28 text-right">
-                <SortButton label={column} column={`bucket:${column}`} activeColumn={sortKey} direction={direction} onSort={onSort} align="right" />
+                <SortButton
+                  label={COLUMN_DISPLAY_LABELS[column] ?? column}
+                  column={`bucket:${column}`}
+                  activeColumn={sortKey}
+                  direction={direction}
+                  onSort={onSort}
+                  align="right"
+                />
               </TableHead>
             ))}
           </TableRow>
@@ -646,7 +716,7 @@ function TimeMatrixTable({
               <TableCell className="font-medium">{row.label}</TableCell>
               <TableCell className="text-right font-medium">{formatNumber(row.total)}</TableCell>
               {columns.map((column) => {
-                const cell = bucketCell(row, column);
+                const cell = getCumulativeCell(row, column, columns, cumulativeBuckets);
                 return (
                   <TableCell key={column} className="text-right">
                     <span className="font-medium">{formatNumber(cell.count)}</span>
@@ -833,12 +903,14 @@ function FilterFields({
     onChange({
       ...filters,
       [key]: value,
-      policeStation: key === "district" ? ALL : filters.policeStation,
+      ...(key === "district" && { policeStation: ALL }),
     });
   };
 
+  const districtSelected = filters.district !== ALL;
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+    <div className={`grid gap-3 sm:grid-cols-2 ${districtSelected ? "xl:grid-cols-8" : "xl:grid-cols-7"}`}>
       <div className="grid gap-1.5">
         <Label htmlFor="date-from" className="text-xs text-muted-foreground">
           From
@@ -852,6 +924,14 @@ function FilterFields({
         <Input id="date-to" type="date" value={filters.to} onChange={(event) => setValue("to", event.target.value)} />
       </div>
       <SelectField label="District" value={filters.district} onValueChange={(value) => setValue("district", value)} options={data.metadata.districts} />
+      {districtSelected && (
+        <SelectField
+          label="Police Station"
+          value={filters.policeStation}
+          onValueChange={(value) => setValue("policeStation", value)}
+          options={data.metadata.policeStations}
+        />
+      )}
       <SelectField label="Complaint type" value={filters.type} onValueChange={(value) => setValue("type", value)} options={typeOptions} />
       <SelectField label="Crime category" value={filters.classOfIncident} onValueChange={(value) => setValue("classOfIncident", value)} options={classOptions} />
       <SelectField label="Source" value={filters.source} onValueChange={(value) => setValue("source", value)} options={sourceOptions} />
@@ -862,6 +942,7 @@ function FilterFields({
         options={[
           { id: "disposed", name: "Disposed" },
           { id: "pending", name: "Pending" },
+          { id: "pending-over-30", name: "Pending over 30 days" },
           { id: "unknown", name: "Unknown" },
         ]}
       />
@@ -900,6 +981,7 @@ function TimeAnalysisCard({
               columns={columns}
               title={`${title} by district`}
               description={description}
+              cumulativeBuckets
             />
           </TabsContent>
           <TabsContent value="class">
@@ -908,6 +990,7 @@ function TimeAnalysisCard({
               columns={columns}
               title={`${title} by crime category`}
               description={description}
+              cumulativeBuckets
             />
           </TabsContent>
         </Tabs>
@@ -919,17 +1002,54 @@ function TimeAnalysisCard({
 function DashboardView({
   data,
   filters,
+  onApplyFilters,
 }: {
   data: DashboardData;
   filters: DashboardFilters;
+  onApplyFilters?: (filters: DashboardFilters) => void;
 }) {
+  const activeStatus = filters.status && filters.status !== "all" ? filters.status : null;
+
+  const filterByStatus = (status: "disposed" | "pending" | "all" | "pending-over-30") => {
+    if (!onApplyFilters) return;
+    onApplyFilters({ ...filters, status });
+  };
+
   return (
     <div className="space-y-4">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total complaints" value={formatNumber(data.summary.total)} detail={`${data.filters.from} to ${data.filters.to}`} icon={<CalendarDays className="size-4" />} />
-        <MetricCard label="Disposed" value={formatNumber(data.summary.disposed)} detail={`${formatPercent(data.summary.disposedPercent)} of total`} icon={<CheckCircle2 className="size-4" />} />
-        <MetricCard label="Pending" value={formatNumber(data.summary.pending)} detail={`${formatPercent(data.summary.pendingPercent)} of total`} icon={<Clock3 className="size-4" />} />
-        <MetricCard label="Pending over 30 days" value={formatNumber(data.summary.overThirtyPending)} detail={`Avg disposal ${formatNumber(data.summary.avgDisposalDays)} days`} icon={<AlertCircle className="size-4" />} />
+        <MetricCard
+          label="Total complaints"
+          value={formatNumber(data.summary.total)}
+          detail={`${data.filters.from} to ${data.filters.to}`}
+          icon={<CalendarDays className="size-4" />}
+          active={activeStatus === null}
+          onClick={() => filterByStatus("all")}
+        />
+        <MetricCard
+          label="Disposed"
+          value={formatNumber(data.summary.disposed)}
+          detail={`${formatPercent(data.summary.disposedPercent)} of total`}
+          icon={<CheckCircle2 className="size-4" />}
+          active={activeStatus === "disposed"}
+          onClick={() => filterByStatus("disposed")}
+        />
+        <MetricCard
+          label="Pending"
+          value={formatNumber(data.summary.pending)}
+          detail={`${formatPercent(data.summary.pendingPercent)} of total`}
+          icon={<Clock3 className="size-4" />}
+          active={activeStatus === "pending"}
+          onClick={() => filterByStatus("pending")}
+        />
+        <MetricCard
+          label="Pending over 30 days"
+          value={formatNumber(data.summary.overThirtyPending)}
+          detail={`Avg disposal ${formatNumber(data.summary.avgDisposalDays)} days`}
+          icon={<AlertCircle className="size-4" />}
+          active={activeStatus === "pending-over-30"}
+          onClick={() => filterByStatus("pending-over-30")}
+        />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
@@ -1239,6 +1359,12 @@ export function DashboardShell({ data, detail }: DashboardShellProps) {
               <RefreshCw className={syncing ? "animate-spin" : ""} />
               Sync now
             </Button>
+            <Button asChild type="button" variant="outline" className="text-primary hover:text-primary border-primary/20 bg-primary/5">
+              <Link href={`/data?${exportQuery}`}>
+                <TableIcon />
+                View Data
+              </Link>
+            </Button>
             <Button asChild type="button" variant="outline">
               <a href={`/api/export/excel?${exportQuery}`}>
                 <FileSpreadsheet />
@@ -1303,7 +1429,7 @@ export function DashboardShell({ data, detail }: DashboardShellProps) {
         ) : null}
 
         {detail ? (
-          <DashboardView data={data} filters={data.filters} />
+          <DashboardView data={data} filters={data.filters} onApplyFilters={applyFilters} />
         ) : (
           <Tabs defaultValue="dashboard" className="gap-4">
             <TabsList>
@@ -1311,7 +1437,7 @@ export function DashboardShell({ data, detail }: DashboardShellProps) {
               <TabsTrigger value="database">Database</TabsTrigger>
             </TabsList>
             <TabsContent value="dashboard">
-              <DashboardView data={data} filters={data.filters} />
+              <DashboardView data={data} filters={data.filters} onApplyFilters={applyFilters} />
             </TabsContent>
             <TabsContent value="database">
               <DatabaseView data={data} />

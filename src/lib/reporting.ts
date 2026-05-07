@@ -99,7 +99,7 @@ export function filtersFromSearchParams(
       firstParam(searchParams.classOfIncident) ?? DEFAULT_FILTER_VALUE,
     source: firstParam(searchParams.source) ?? DEFAULT_FILTER_VALUE,
     status:
-      status === "disposed" || status === "pending" || status === "unknown"
+      status === "disposed" || status === "pending" || status === "unknown" || status === "pending-over-30"
         ? status
         : DEFAULT_FILTER_VALUE,
   };
@@ -621,7 +621,21 @@ export function makeWhere(filters: DashboardFilters): Prisma.ComplaintWhereInput
     where.complaintSource = filters.source;
   }
   if (filters.status !== DEFAULT_FILTER_VALUE) {
-    where.statusGroup = filters.status;
+    if (filters.status === "pending-over-30") {
+      where.statusGroup = "pending";
+      const thirtyDaysAgo = indiaTodayDate();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      if (!where.regDate) {
+        where.regDate = {};
+      }
+      // If a 'to' date filter is already applied, take the stricter (older) of the two
+      if (!(where.regDate as any).lte || thirtyDaysAgo < (where.regDate as any).lte) {
+        (where.regDate as any).lte = thirtyDaysAgo;
+      }
+    } else {
+      where.statusGroup = filters.status;
+    }
   }
 
   return where;
@@ -656,7 +670,20 @@ function makeAggregateWhere(
     where.sourceKey = normalizeAggKey(filters.source);
   }
   if (filters.status !== DEFAULT_FILTER_VALUE) {
-    where.statusGroup = filters.status;
+    if (filters.status === "pending-over-30") {
+      where.statusGroup = "pending";
+      const thirtyDaysAgo = indiaTodayDate();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      if (!where.regDate) {
+        where.regDate = {};
+      }
+      if (!(where.regDate as any).lte || thirtyDaysAgo < (where.regDate as any).lte) {
+        (where.regDate as any).lte = thirtyDaysAgo;
+      }
+    } else {
+      where.statusGroup = filters.status;
+    }
   }
 
   return where;
@@ -691,13 +718,26 @@ function makeAggregateDisposalWhere(
     where.sourceKey = normalizeAggKey(filters.source);
   }
   if (filters.status !== DEFAULT_FILTER_VALUE) {
-    where.statusGroup = filters.status;
+    if (filters.status === "pending-over-30") {
+      where.statusGroup = "pending";
+      const thirtyDaysAgo = indiaTodayDate();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      if (!where.regDate) {
+        where.regDate = {};
+      }
+      if (!(where.regDate as any).lte || thirtyDaysAgo < (where.regDate as any).lte) {
+        (where.regDate as any).lte = thirtyDaysAgo;
+      }
+    } else {
+      where.statusGroup = filters.status;
+    }
   }
 
   return where;
 }
 
-async function getMetadataLists(): Promise<MetadataLists> {
+export async function getMetadataLists(): Promise<MetadataLists> {
   const cached = metadataCache;
   if (cached && cached.expiresAt > Date.now()) {
     return cached.data;

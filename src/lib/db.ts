@@ -1,10 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 
-let prisma: PrismaClient | null = null;
+// In development, Next.js hot-reload re-evaluates modules on every change,
+// creating new PrismaClient instances each time and exhausting the DB connection pool.
+// Storing the instance on `global` survives module re-evaluation in dev mode.
+// In production, module-level variables are fine since there is no hot reload.
 
-export function getDb() {
-  if (!prisma) {
-    prisma = new PrismaClient();
+const globalForPrisma = globalThis as unknown as { _prisma?: PrismaClient };
+
+export function getDb(): PrismaClient {
+  if (!globalForPrisma._prisma) {
+    globalForPrisma._prisma = new PrismaClient();
   }
-  return prisma;
+  return globalForPrisma._prisma;
 }
