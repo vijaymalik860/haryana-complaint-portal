@@ -13,7 +13,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
+
+function safeFormat(date: Date | null | undefined): string {
+  if (!date || !isValid(date)) return "-";
+  try {
+    return format(date, "dd/MM/yyyy");
+  } catch {
+    return "-";
+  }
+}
 
 export default async function DataPage({
   searchParams,
@@ -145,7 +154,7 @@ export default async function DataPage({
                       <TableRow key={c.id}>
                         <TableCell className="font-medium">{c.regNum || "-"}</TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {c.regDate ? format(c.regDate, "dd/MM/yyyy") : "-"}
+                          {safeFormat(c.regDate)}
                         </TableCell>
                         <TableCell>{c.districtName || "-"}</TableCell>
                         <TableCell>
@@ -169,7 +178,7 @@ export default async function DataPage({
                           </span>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {c.disposalDate ? format(c.disposalDate, "dd/MM/yyyy") : "-"}
+                          {safeFormat(c.disposalDate)}
                         </TableCell>
                         <TableCell>
                           {c.statusGroup === "pending" && c.regDate

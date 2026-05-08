@@ -183,15 +183,23 @@ function formatAxisNumber(value: number | string) {
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "-";
-  return new Date(value).toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return (
+    <span suppressHydrationWarning>
+      {new Date(value).toLocaleString("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })}
+    </span>
+  );
 }
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "-";
-  return new Date(value).toLocaleDateString("en-IN", { dateStyle: "medium" });
+  return (
+    <span suppressHydrationWarning>
+      {new Date(value).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+    </span>
+  );
 }
 
 function buildQuery(filters: DashboardFilters) {
@@ -274,7 +282,7 @@ function MetricCard({
   active,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   detail: string;
   icon: ReactNode;
   onClick?: () => void;
